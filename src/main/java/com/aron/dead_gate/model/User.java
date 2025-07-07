@@ -1,12 +1,20 @@
 package com.aron.dead_gate.model;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.JsonSerializable;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.jsontype.TypeSerializer;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
+import java.io.InputStream;
 
-@Slf4j
+@Entity
 public class User {
+    @Id
     private int id;
     private String name;
     
@@ -34,12 +42,8 @@ public class User {
     }
 
     public String toJson() {
-        try {
-            return new ObjectMapper().writeValueAsString(this);
-        }
-        catch (IOException e) {
-            throw new RuntimeException("Error converting user to JSON", e);
-        }
+        return String.format("{\"id\":%d,\"name\":\"%s\"}", id, name);
     }
+
 
 }
