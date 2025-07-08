@@ -54,7 +54,9 @@ public class MainApiGateway {
             }
             String forwardedPath = path.replaceFirst("/"+serviceName,"");
 
-            String fullUrl = backendUrl + forwardedPath;
+            String servicePath = path.replaceFirst("/service1", ""); // remove service prefix only
+            String fullUrl = backendUrl + servicePath;
+
             System.out.println("Forwarding to backend: "+fullUrl);
 
             try{
