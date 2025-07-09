@@ -9,6 +9,9 @@ import java.net.InetSocketAddress;
 public class MainController {
     public static void main(String[] args) throws IOException {
         int port = 9001;
+        if(args.length > 0){
+            port = Integer.parseInt(args[0]);
+        }
         HttpServer server = HttpServer.create(new InetSocketAddress(port),0);
 
         server.createContext("/api/users", new UserController());

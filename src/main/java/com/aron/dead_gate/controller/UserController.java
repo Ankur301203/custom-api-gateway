@@ -1,5 +1,6 @@
 package com.aron.dead_gate.controller;
 
+import com.aron.dead_gate.config.RouteConfig;
 import com.aron.dead_gate.model.User;
 import com.aron.dead_gate.service.UserService;
 import com.aron.dead_gate.util.PathUtil;
@@ -8,9 +9,11 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONObject;
+import org.springframework.util.RouteMatcher;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 
@@ -20,13 +23,14 @@ public class UserController implements HttpHandler {
 
     @Override
     public void handle(HttpExchange exchange) throws IOException{
+        long startTime = System.currentTimeMillis();
+
         String method = exchange.getRequestMethod();
         String fullPath = exchange.getRequestURI().getPath();
         String basePath = exchange.getHttpContext().getPath();
         String relativePath = fullPath.substring(basePath.length());
 
-        System.out.println("Incoming request: " + fullPath);
-        System.out.println("Relative path: " + relativePath);
+        log.info("[{}] Incoming request: {} {}", LocalDateTime.now(), method, fullPath);
 
         try{
             switch(method.toUpperCase()){
@@ -38,14 +42,17 @@ public class UserController implements HttpHandler {
             }
         }
         catch(Exception e){
-            e.printStackTrace();
+            log.error("Error handling request: {} {}", method, fullPath, e);
             ResponseUtil.sendError(exchange, 500, "Internal server error: " + e.getMessage());
         }
+        long endTime = System.currentTimeMillis();
+        log.info("Completed {} {} in {}ms", method, fullPath, endTime-startTime);
+
     }
 
     private void handleGet(HttpExchange exchange, String path) throws IOException {
         String[] parts = path.split("/");
-        System.out.println("GET path parts: " + Arrays.toString(parts));
+//        System.out.println("GET path parts: " + Arrays.toString(parts));
 
         if(path.equals("") || path.equals("/")){
             List<User> users = userService.getAllUsers();

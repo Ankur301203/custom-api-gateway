@@ -1,9 +1,10 @@
 package com.aron.dead_gate;
 
-import com.sun.net.httpserver.Headers;
+import com.aron.dead_gate.config.RouteConfig;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.*;
 import java.net.HttpURLConnection;
@@ -12,29 +13,23 @@ import java.net.URL;
 import java.util.Map;
 import java.util.concurrent.Executors;
 
+@Slf4j
 public class MainApiGateway {
     public static void main(String[] args) throws IOException {
         int port = 8080;
         HttpServer server = HttpServer.create(new InetSocketAddress(port),0);
         System.out.println("Api gateway started on port: "+port);
         
-        Map<String,String> routeMap = Map.of(
-                "service1","http://localhost:9001",
-                "service2","http://localhost:9002"
+        RouteConfig.loadFromProperties();
 
-        );
-
-        server.createContext("/", new DynamicRouter(routeMap));
+        server.createContext("/", new DynamicRouter());
         server.setExecutor(Executors.newFixedThreadPool(10)); // thread pool
         server.start();
 
     }
     static class DynamicRouter implements HttpHandler {
-        private final Map<String,String> routeMap;
+        public DynamicRouter(){}
 
-        public DynamicRouter(Map<String,String> routeMap){
-            this.routeMap = routeMap;
-        }
         @Override
         public void handle(HttpExchange exchange) throws IOException{
             String path = exchange.getRequestURI().getPath();
@@ -47,7 +42,7 @@ public class MainApiGateway {
             }
 
             String serviceName = parts[1];
-            String backendUrl = routeMap.get(serviceName);
+            String backendUrl = RouteConfig.getNextUrl(serviceName);
             if(backendUrl == null){
                 sendError(exchange,404,"Service not found: "+serviceName);
                 return;
@@ -90,7 +85,8 @@ public class MainApiGateway {
                     os.write(responseBytes);
                 }
 
-                System.out.println("Backend responded with code: "+responseCode);
+//                System.out.println("Backend responded with code: "+responseCode);
+                log.info("Backend responded with code: {} for request: {} {}", responseCode, exchange.getRequestMethod(), exchange.getRequestURI());
             }
             catch (Exception e){
                 e.printStackTrace();
