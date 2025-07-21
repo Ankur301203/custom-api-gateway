@@ -1,6 +1,7 @@
 package com.aron.dead_gate;
 
 import com.aron.dead_gate.config.RouteConfig;
+import com.aron.dead_gate.rate_limit.RateLimiterV1;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -15,6 +16,8 @@ import java.util.concurrent.Executors;
 
 @Slf4j
 public class MainApiGateway {
+    private static final RateLimiterV1 rateLim = new RateLimiterV1(1000); // 10 req/sec per service
+
     public static void main(String[] args) throws IOException {
         int port = 8080;
         HttpServer server = HttpServer.create(new InetSocketAddress(port),0);
@@ -23,7 +26,7 @@ public class MainApiGateway {
         RouteConfig.loadFromProperties();
 
         server.createContext("/", new DynamicRouter());
-        server.setExecutor(Executors.newFixedThreadPool(10)); // thread pool
+        server.setExecutor(Executors.newFixedThreadPool(100)); // thread pool
         server.start();
 
     }
@@ -42,6 +45,11 @@ public class MainApiGateway {
             }
 
             String serviceName = parts[1];
+            if(!rateLim.isAllowed(serviceName)){
+                sendError(exchange,429,"Rate limit exceeded for service: "+serviceName);
+                return;
+            }
+
             String backendUrl = RouteConfig.getNextUrl(serviceName);
             if(backendUrl == null){
                 sendError(exchange,404,"Service not found: "+serviceName);
@@ -99,62 +107,6 @@ public class MainApiGateway {
             try (OutputStream os = exchange.getResponseBody()) {
                 os.write(bytes);
             }
-        }
-    }
-
-    static class ProxyHandler implements HttpHandler {
-        private final String backendUrl;
-
-        public ProxyHandler(String backendUrl){
-            this.backendUrl = backendUrl;
-        }
-
-        @Override
-        public void handle(HttpExchange exchange)throws IOException{
-            String fullUrl = backendUrl + exchange.getRequestURI().getPath().replaceFirst("/[^/]+","");
-            System.out.println("Incoming request: " + exchange.getRequestURI());
-            System.out.println("Forwarding to backend: " + fullUrl);
-
-            try {
-                URL url = new URL(fullUrl);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setConnectTimeout(5000);
-                conn.setReadTimeout(5000);
-//                conn.setRequestMethod(exchange.getRequestMethod());
-
-                exchange.getRequestHeaders().forEach((key,values)->{
-                    for(String value : values){
-                        conn.addRequestProperty(key, value);
-                    }
-                });
-
-                // if post/put req
-                if(exchange.getRequestMethod().equalsIgnoreCase("POST") || exchange.getRequestMethod().equalsIgnoreCase("PUT")){
-                    conn.setDoOutput(true);
-                    try(OutputStream out = conn.getOutputStream(); InputStream in = exchange.getRequestBody()){
-                        in.transferTo(out);
-                    }
-                }
-                int responseCode = conn.getResponseCode();
-                InputStream backendResponseStream = responseCode >= 400 ? conn.getErrorStream() : conn.getInputStream();
-                byte[] responseBytes = backendResponseStream.readAllBytes();
-
-                exchange.sendResponseHeaders(responseCode,responseBytes.length);
-                try(OutputStream os = exchange.getResponseBody()){
-                    os.write(responseBytes);
-                }
-
-                System.out.println("Backend responded with code: "+responseCode);
-            }
-            catch (IOException e) {
-                e.printStackTrace();
-                String err = "Gateway error: "+e.getMessage();
-                exchange.sendResponseHeaders(502,err.length());
-                try(OutputStream os = exchange.getResponseBody()){
-                    os.write(err.getBytes());
-                }
-            }
-
         }
     }
 }

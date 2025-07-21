@@ -25,6 +25,7 @@ public class UserController implements HttpHandler {
     public void handle(HttpExchange exchange) throws IOException{
         long startTime = System.currentTimeMillis();
 
+        String address = exchange.getLocalAddress().toString();
         String method = exchange.getRequestMethod();
         String fullPath = exchange.getRequestURI().getPath();
         String basePath = exchange.getHttpContext().getPath();
